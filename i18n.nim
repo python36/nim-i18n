@@ -161,7 +161,7 @@ proc `!$`(h: Hash): Hash {.inline.} =
       result = result +% result shl 15
 
 proc get(self: StringEntry; cache: string): string =
-    shallowCopy(result, cache[self.offset.int..<self.offset.int+self.length.int])
+    cache[self.offset.int..<self.offset.int+self.length.int]
 
 proc equal(self: StringEntry; other: string; cache: string): bool =
     if self.length.int == other.len:
@@ -209,7 +209,7 @@ proc insert(self: Catalogue; key: StringEntry; value: string) =
         quit("failure to insert key!")
     else:
         self.entries[index].key = key
-        shallowCopy self.entries[index].value, value
+        self.entries[index].value = value
 
 
 proc get_bucket(self: Catalogue; key: string): int =
@@ -232,7 +232,7 @@ proc get_bucket(self: Catalogue; key: string): int =
 proc lookup(self: Catalogue; key: string): string =
     let index = self.get_bucket(key)
     if index != -1:
-        shallowCopy result, self.entries[index].value
+        result = self.entries[index].value
 
 
 proc read_string_table(f: FileStream; table_size: int; entries_size: var int; entries_offset: var int):seq[StringEntry] =
@@ -356,12 +356,12 @@ proc newCatalogue(domain: string; filename: string) : Catalogue =
                 let vsplit = cast[ByteAddress](null_byte) -% cast[ByteAddress](value_cache[0].addr)
 
                 if index <= plurals.high : # if msgid has more plurals than declared, ignore.
-                    shallowCopy plurals[index], value_cache[voffset..<vsplit]
+                    plurals[index] = value_cache[voffset..<vsplit]
                 remaining -= vsplit - voffset + 1
                 voffset = vsplit + 1
                 index += 1
 
-            shallowCopy result.plural_lookup[plural_msg], plurals
+            result.plural_lookup[plural_msg] = plurals
 
         else: # key has no plural, simple result
             result.insert( StringEntry(offset: koffset.uint32, length: klength.uint32),
@@ -429,18 +429,18 @@ proc get_locale_properties(): (string, string) =
 
 proc decode_impl(catalogue: Catalogue; translation: string): string {.inline.}=
     if catalogue.use_decoder:
-        shallowCopy result, catalogue.decoder.convert(translation)
+        catalogue.decoder.convert(translation)
     else:
-        shallowCopy result, translation
+        translation
 
 proc dgettext_impl( catalogue: Catalogue;
                     msgid: string;
                     info: LineInfo): string {.inline.} =
-    shallowCopy result, catalogue.lookup(msgid)
+    result = catalogue.lookup(msgid)
     if result == "":
         debug("Warning: translation not found! : " &
               "'$#' in domain '$#'".format(msgid, catalogue.domain), info)
-        shallowCopy result, catalogue.decode_impl(msgid)
+        result = catalogue.decode_impl(msgid)
 
 
 proc dngettext_impl(catalogue: Catalogue;
@@ -452,15 +452,15 @@ proc dngettext_impl(catalogue: Catalogue;
         debug("Warning: translation not found! : " &
               "'$#/$#' in domain '$#'".format(msgid, msgid_plural, catalogue.domain), info)
         if num == 1:
-            shallowCopy result, msgid
+            result = msgid
         else:
-            shallowCopy result, msgid_plural
+            result = msgid_plural
     else:
         var index = catalogue.plurals.evaluate(num)
         if index >= catalogue.num_plurals:
             index = 0
         let pl = plurals[index] ?? plurals[0]
-        shallowCopy result, catalogue.decode_impl(pl)
+        result = catalogue.decode_impl(pl)
 
 
 # gettext functions
