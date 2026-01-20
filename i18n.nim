@@ -447,6 +447,15 @@ proc dgettext_impl( catalogue: Catalogue;
                       "'$#' in domain '$#'".format(msgid, catalogue.domain), info)
         result = catalogue.decode_impl(msgid)
 
+proc dgettext_impl( catalogue: Catalogue;
+                    msgctxt, msgid: string;
+                    info: LineInfo): string {.inline.} =
+    shallowCopy result, catalogue.lookup(msgctxt & MSGCTXT_SEPARATOR & msgid)
+    if result == "":
+        debug("Warning: translation not found! : " &
+              "'$#' in domain '$#'".format(msgctxt & "." & msgid, catalogue.domain), info)
+        shallowCopy result, catalogue.decode_impl(msgid)
+
 
 proc dngettext_impl(catalogue: Catalogue;
                     msgid, msgid_plural: string;
@@ -473,6 +482,24 @@ proc dngettext_impl(catalogue: Catalogue;
         let pl = plurals[index] ?? plurals[0]
         result = catalogue.decode_impl(pl)
 
+proc dngettext_impl(catalogue: Catalogue;
+                    msgctxt, msgid, msgid_plural: string;
+                    num: int;
+                    info: LineInfo): string =
+    let plurals = catalogue.plural_lookup.getOrDefault(msgctxt & MSGCTXT_SEPARATOR & msgid)
+    if plurals == []:
+        debug("Warning: translation not found! : " &
+              "'$#/$#' in domain '$#'".format(msgctxt & "." & msgid, msgid_plural, catalogue.domain), info)
+        if num == 1:
+            shallowCopy result, msgid
+        else:
+            shallowCopy result, msgid_plural
+    else:
+        var index = catalogue.plurals.evaluate(num)
+        if index >= catalogue.num_plurals:
+            index = 0
+        let pl = plurals[index] ?? plurals[0]
+        shallowCopy result, catalogue.decode_impl(pl)
 
 # gettext functions
 
@@ -531,22 +558,34 @@ template tr*(msgid: string): string =
 template pgettext*(msgctxt, msgid: string): string =
     ## Same as **gettext**, but ``msgctxt`` is used to suply a specific context
     ## for ``msgid`` lookup inside current domain.
-    gettext(msgctxt & MSGCTXT_SEPARATOR & msgid)
+    when not defined(release):
+        if CURRENT_CATALOGUE == DEFAULT_NULL_CATALOGUE:
+            debug("warning: TextDomain is not set. " &
+                  "(use 'setTextDomain' to bind a valid TextDomain as default)",
+                  instantiationInfo())
+    dgettext_impl(CURRENT_CATALOGUE, msgctxt, msgid, instantiationInfo())
 
 template npgettext*(msgctxt, msgid, msgid_plural: string; num: int): string =
     ## Same as **ngettext**, but ``msgctxt`` is used to suply a specific context
     ## for ``msgid`` lookup inside current domain.
-    ngettext(msgctxt & MSGCTXT_SEPARATOR & msgid, msgid_plural, num)
+    when not defined(release):
+        if CURRENT_CATALOGUE == DEFAULT_NULL_CATALOGUE:
+            debug("warning: TextDomain is not set. " &
+                  "(use 'setTextDomain' to bind a valid TextDomain as default)",
+                  instantiationInfo())
+    dngettext_impl(CURRENT_CATALOGUE, msgctxt, msgid, msgid_plural, num, instantiationInfo())
 
 template dpgettext*(domain, msgctxt, msgid: string): string =
     ## Same as **dgettext**, but ``msgctxt`` is used to suply a specific context
     ## for ``msgid`` lookup inside specified ``domain``.
-    dgettext(domain, msgctxt & MSGCTXT_SEPARATOR & msgid)
+    let catalogue {.gensym.} = set_text_domain_impl(domain, instantiationInfo())
+    dgettext_impl(catalogue, msgctxt, msgid, instantiationInfo())
 
 template dnpgettext*(domain, msgctxt, msgid, msgid_plural: string; num: int): string =
     ## Same as **dngettext**, but ``msgctxt`` is used to suply a specific context
     ## for ``msgid`` lookup inside specified ``domain``.
-    dngettext(domain, msgctxt & MSGCTXT_SEPARATOR & msgid, msgid_plural, num)
+    let catalogue {.gensym.} = set_text_domain_impl(domain, instantiationInfo())
+    dngettext_impl(catalogue, msgctxt, msgid, msgid_plural, num, instantiationInfo())
 
 template setTextDomain*(domain: string) : bool =
     ## Sets the current message domain used by **gettext**, **ngettext**, **pgettext**,
