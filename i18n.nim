@@ -428,7 +428,7 @@ proc get_locale_properties(): (string, string) =
 
 
 proc decode_impl(catalogue: Catalogue; translation: string): string {.inline.}=
-    if catalogue.use_decoder:
+    if catalogue != nil and catalogue.use_decoder:
         catalogue.decoder.convert(translation)
     else:
         translation
@@ -436,10 +436,15 @@ proc decode_impl(catalogue: Catalogue; translation: string): string {.inline.}=
 proc dgettext_impl( catalogue: Catalogue;
                     msgid: string;
                     info: LineInfo): string {.inline.} =
-    result = catalogue.lookup(msgid)
+    if catalogue != nil:
+        result = catalogue.lookup(msgid)
     if result == "":
-        debug("Warning: translation not found! : " &
-              "'$#' in domain '$#'".format(msgid, catalogue.domain), info)
+        when not defined(release):
+            if catalogue == nil:
+                debug("Warning: catalogue not setted!", info)
+            else:
+                debug("Warning: translation not found! : " &
+                      "'$#' in domain '$#'".format(msgid, catalogue.domain), info)
         result = catalogue.decode_impl(msgid)
 
 
@@ -447,10 +452,16 @@ proc dngettext_impl(catalogue: Catalogue;
                     msgid, msgid_plural: string;
                     num: int;
                     info: LineInfo): string =
-    let plurals = catalogue.plural_lookup.getOrDefault(msgid)
+    var plurals: seq[string]
+    if catalogue != nil:
+        plurals = catalogue.plural_lookup.getOrDefault(msgid)
     if plurals == []:
-        debug("Warning: translation not found! : " &
-              "'$#/$#' in domain '$#'".format(msgid, msgid_plural, catalogue.domain), info)
+        when not defined(release):
+            if catalogue == nil:
+                debug("Warning: catalogue not setted!", info)
+            else:
+                debug("Warning: translation not found! : " &
+                      "'$#/$#' in domain '$#'".format(msgid, msgid_plural, catalogue.domain), info)
         if num == 1:
             result = msgid
         else:
