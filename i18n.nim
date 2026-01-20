@@ -450,11 +450,12 @@ proc dgettext_impl( catalogue: Catalogue;
 proc dgettext_impl( catalogue: Catalogue;
                     msgctxt, msgid: string;
                     info: LineInfo): string {.inline.} =
-    shallowCopy result, catalogue.lookup(msgctxt & MSGCTXT_SEPARATOR & msgid)
+    if catalogue != nil:
+        result = catalogue.lookup(msgctxt & MSGCTXT_SEPARATOR & msgid)
     if result == "":
         debug("Warning: translation not found! : " &
               "'$#' in domain '$#'".format(msgctxt & "." & msgid, catalogue.domain), info)
-        shallowCopy result, catalogue.decode_impl(msgid)
+        result = catalogue.decode_impl(msgid)
 
 
 proc dngettext_impl(catalogue: Catalogue;
@@ -486,20 +487,22 @@ proc dngettext_impl(catalogue: Catalogue;
                     msgctxt, msgid, msgid_plural: string;
                     num: int;
                     info: LineInfo): string =
-    let plurals = catalogue.plural_lookup.getOrDefault(msgctxt & MSGCTXT_SEPARATOR & msgid)
+    var plurals: seq[string]
+    if catalogue != nil:
+        plurals = catalogue.plural_lookup.getOrDefault(msgctxt & MSGCTXT_SEPARATOR & msgid)
     if plurals == []:
         debug("Warning: translation not found! : " &
               "'$#/$#' in domain '$#'".format(msgctxt & "." & msgid, msgid_plural, catalogue.domain), info)
         if num == 1:
-            shallowCopy result, msgid
+            result = msgid
         else:
-            shallowCopy result, msgid_plural
+            result = msgid_plural
     else:
         var index = catalogue.plurals.evaluate(num)
         if index >= catalogue.num_plurals:
             index = 0
         let pl = plurals[index] ?? plurals[0]
-        shallowCopy result, catalogue.decode_impl(pl)
+        result = catalogue.decode_impl(pl)
 
 # gettext functions
 
